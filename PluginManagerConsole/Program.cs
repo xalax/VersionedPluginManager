@@ -22,15 +22,12 @@ namespace xalax.PluginManager.SampleConsole
     {
         static void Main(string[] args)
         {
-            for (var i = 0; i < 100; i++)
-            {
-                var pm = new PluginManager(Environment.CurrentDirectory + System.IO.Path.DirectorySeparatorChar + "references")
-                    .Register<ISamplePlugin.ISamplePlugin>(new Version(1, 0), new Version(2, 9))
-                        .Discover();
+            var pm = new PluginManager(Environment.CurrentDirectory + System.IO.Path.DirectorySeparatorChar + "SamplePlugin")
+                .Register<ISamplePlugin.ISamplePlugin>(new Version(1, 0), new Version(1, 9))
+                    .Discover();
 
-                var plugin = pm.GetPlugins<ISamplePlugin.ISamplePlugin>(p => p.GetType().Name == "SamplePlugin").FirstOrDefault();
-                Console.WriteLine(plugin.SampleMethod(0, ""));
-            }
+            var plugin = pm.GetPlugins<ISamplePlugin.ISamplePlugin>(p => p.GetType().Name == "SamplePlugin").FirstOrDefault();
+            Console.WriteLine(plugin.SampleMethod(1, ""));
 
             Console.ReadKey();
         }

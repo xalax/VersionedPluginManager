@@ -140,148 +140,172 @@ namespace xalax.PluginManager
 
             foreach (var folder in _LookupLocations)
             {
+                DiscoverPath(myThrowExceptionOnIncompatibleVersion, myPublicOnly, folder);
+            }
+            return this;
+        }
 
-                #region Get all files in the _LookupLocations
+        private void DiscoverPath(Boolean myThrowExceptionOnIncompatibleVersion, Boolean myPublicOnly, String myPath)
+        {
 
-                var files = Directory.EnumerateFiles(folder, "*.dll")
-                    .Union(Directory.EnumerateFiles(folder, "*.exe"));
+            #region Get all files in the _LookupLocations
+
+            var files = Directory.EnumerateFiles(myPath, "*.dll")
+                .Union(Directory.EnumerateFiles(myPath, "*.exe"));
+
+            #endregion
+
+            foreach (var file in files)
+            {
+                DiscoverFile(myThrowExceptionOnIncompatibleVersion, myPublicOnly, file);
+            }
+        }
+
+        private void DiscoverFile(Boolean myThrowExceptionOnIncompatibleVersion, Boolean myPublicOnly, String myFile)
+        {
+            Assembly loadedPluginAssembly;
+
+            #region Try to load assembly from the filename
+
+            try
+            {
+                loadedPluginAssembly = Assembly.LoadFrom(myFile);
+                if (loadedPluginAssembly.GetTypes().IsNullOrEmpty())
+                {
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return;
+            }
+
+            #endregion
+
+            #region Get all types of the assembly
+
+            foreach (var type in loadedPluginAssembly.GetTypes())
+            {
+
+                #region Type validation
+
+                if (!type.IsClass || type.IsAbstract)
+                {
+                    continue;
+                }
+
+                if (!type.IsPublic && myPublicOnly)
+                {
+                    continue;
+                }
 
                 #endregion
 
-                foreach (var file in files)
+                FindAndActivateTypes(myThrowExceptionOnIncompatibleVersion, loadedPluginAssembly, type);
+
+            }
+
+            #endregion
+
+        }
+
+        private void FindAndActivateTypes(bool myThrowExceptionOnIncompatibleVersion, Assembly myLoadedPluginAssembly, Type myCurrentPluginType)
+        {
+
+            var validBaseTypes = _InheritTypeAndInstance.Where(kv => kv.Key.IsBaseType(myCurrentPluginType) || kv.Key.IsInterfaceOf(myCurrentPluginType));
+
+            #region Take each baseType which is valid (either base or interface) and verify version and add
+
+            foreach (var baseType in validBaseTypes)
+            {
+                var activatorInfo = _InheritTypeAndInstance[baseType.Key].Item1;
+
+                #region Get baseTypeAssembly and plugin referenced assembly
+
+                var baseTypeAssembly = Assembly.GetAssembly(baseType.Key).GetName();
+                var pluginReferencedAssembly = myLoadedPluginAssembly.GetReferencedAssembly(baseTypeAssembly.Name);
+
+                #endregion
+
+                CheckVersion(myThrowExceptionOnIncompatibleVersion, baseTypeAssembly, pluginReferencedAssembly, activatorInfo);
+
+                #region Create instance and add to lookup dict
+
+                var instance = Activator.CreateInstance(myCurrentPluginType);
+                _InheritTypeAndInstance[baseType.Key].Item2.Add(instance);
+
+                if (OnPluginFound != null)
                 {
-                    Assembly loadedPluginAssembly;
+                    OnPluginFound(this, new PluginFoundEventArgs(myCurrentPluginType, instance));
+                }
 
-                    #region Try to load assembly from the filename
+                #endregion
 
-                    try
+            }
+
+            #endregion
+
+        }
+
+        private void CheckVersion(bool myThrowExceptionOnIncompatibleVersion, AssemblyName myBaseTypeAssembly, AssemblyName myPluginReferencedAssembly, ActivatorInfo myActivatorInfo)
+        {
+
+            #region Check version
+
+            if (myBaseTypeAssembly.Version != myPluginReferencedAssembly.Version)
+            {
+                //Console.WriteLine("Assembly version does not match! Expected '{0}' but current is '{1}'", myLoadedPluginAssembly.GetName().Version, pluginReferencedAssembly.Version);
+                if (myActivatorInfo.MaxVersion != null)
+                {
+
+                    #region Compare min and max version
+
+                    if (myPluginReferencedAssembly.Version.CompareTo(myActivatorInfo.MinVersion) < 0
+                        || myPluginReferencedAssembly.Version.CompareTo(myActivatorInfo.MaxVersion) > 0)
                     {
-                        loadedPluginAssembly = Assembly.LoadFrom(file);
-                        if (loadedPluginAssembly.GetTypes().IsNullOrEmpty())
+                        if (OnPluginIncompatibleVersion != null)
                         {
-                            continue;
+                            OnPluginIncompatibleVersion(this, new PluginIncompatibleVersionEventArgs(myPluginReferencedAssembly.Version, myActivatorInfo.MinVersion, myActivatorInfo.MaxVersion, myActivatorInfo.Type));
+                        }
+                        if (myThrowExceptionOnIncompatibleVersion)
+                        {
+                            throw new IncompatiblePluginVersionException(myPluginReferencedAssembly.Version, myActivatorInfo.MinVersion, myActivatorInfo.MaxVersion);
                         }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        Console.WriteLine(ex.ToString());
-                        continue;
-                    }
-
-                    #endregion
-
-                    #region Get all types of the assembly
-
-                    foreach (var type in loadedPluginAssembly.GetTypes())
-                    {
-
-                        #region Type validation 
-
-                        if (!type.IsClass || type.IsAbstract)
-                        {
-                            continue;
-                        }
-
-                        if (!type.IsPublic && myPublicOnly)
-                        {
-                            continue;
-                        }
-
-                        #endregion
-
-                        var validBaseTypes = _InheritTypeAndInstance.Where(kv => kv.Key.IsBaseType(type) || kv.Key.IsInterfaceOf(type));
-
-                        #region Take each baseType which is valid (either base or interface) and verify version and add
-
-                        foreach (var baseType in validBaseTypes)
-                        {
-                            var activatorInfo = _InheritTypeAndInstance[baseType.Key].Item1;
-
-                            #region Get baseTypeAssembly and plugin referenced assembly
-
-                            var baseTypeAssembly = Assembly.GetAssembly(baseType.Key).GetName();
-                            var pluginReferencedAssembly = loadedPluginAssembly.GetReferencedAssembly(baseTypeAssembly.Name);
-
-                            #endregion
-
-                            #region Check version
-
-                            if (baseTypeAssembly.Version != pluginReferencedAssembly.Version)
-                            {
-                                Console.WriteLine("Assembly version does not match! Expected '{0}' but current is '{1}'", loadedPluginAssembly.GetName().Version, pluginReferencedAssembly.Version);
-                                if (activatorInfo.MaxVersion != null)
-                                {
-
-                                    #region Compare min and max version
-
-                                    if (pluginReferencedAssembly.Version.CompareTo(activatorInfo.MinVersion) < 0
-                                        || pluginReferencedAssembly.Version.CompareTo(activatorInfo.MaxVersion) > 0)
-                                    {
-                                        if (OnPluginIncompatibleVersion != null)
-                                        {
-                                            OnPluginIncompatibleVersion(this, new PluginIncompatibleVersionEventArgs(pluginReferencedAssembly.Version, activatorInfo.MinVersion, activatorInfo.MaxVersion, activatorInfo.Type));
-                                        }
-                                        if (myThrowExceptionOnIncompatibleVersion)
-                                        {
-                                            throw new IncompatiblePluginVersionException(pluginReferencedAssembly.Version, activatorInfo.MinVersion, activatorInfo.MaxVersion);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // valid version
-                                    }
-
-                                    #endregion
-
-                                }
-                                else
-                                {
-                                    if (pluginReferencedAssembly.Version.CompareTo(activatorInfo.MinVersion) < 0)
-                                    {
-                                        if (OnPluginIncompatibleVersion != null)
-                                        {
-                                            OnPluginIncompatibleVersion(this, new PluginIncompatibleVersionEventArgs(pluginReferencedAssembly.Version, activatorInfo.MinVersion, activatorInfo.MaxVersion, activatorInfo.Type));
-                                        }
-                                        if (myThrowExceptionOnIncompatibleVersion)
-                                        {
-                                            throw new IncompatiblePluginVersionException(pluginReferencedAssembly.Version, activatorInfo.MinVersion);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // valid version
-                                    }
-                                }
-
-                            }
-
-                            #endregion
-
-                            #region Create instance and add to lookup dict
-
-                            var instance = Activator.CreateInstance(type);
-                            _InheritTypeAndInstance[baseType.Key].Item2.Add(instance);
-
-                            if (OnPluginFound != null)
-                            {
-                                OnPluginFound(this, new PluginFoundEventArgs(type, instance));
-                            }
-
-                            #endregion
-
-                        }
-
-                        #endregion
-
+                        // valid version
                     }
 
                     #endregion
 
                 }
+                else
+                {
+                    if (myPluginReferencedAssembly.Version.CompareTo(myActivatorInfo.MinVersion) < 0)
+                    {
+                        if (OnPluginIncompatibleVersion != null)
+                        {
+                            OnPluginIncompatibleVersion(this, new PluginIncompatibleVersionEventArgs(myPluginReferencedAssembly.Version, myActivatorInfo.MinVersion, myActivatorInfo.MaxVersion, myActivatorInfo.Type));
+                        }
+                        if (myThrowExceptionOnIncompatibleVersion)
+                        {
+                            throw new IncompatiblePluginVersionException(myPluginReferencedAssembly.Version, myActivatorInfo.MinVersion);
+                        }
+                    }
+                    else
+                    {
+                        // valid version
+                    }
+                }
+
             }
-            return this;
+
+            #endregion
+
         }
-        
+
         #endregion
 
         #region GetPlugins
