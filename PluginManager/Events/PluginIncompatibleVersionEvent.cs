@@ -14,6 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Reflection;
 
 namespace xalax.PluginManager.Events
 {
@@ -30,15 +31,17 @@ namespace xalax.PluginManager.Events
         public Version MinVersion { get; private set; }
         public Version MaxVersion { get; private set; }
         public Type PluginType { get; private set; }
+        public Assembly PluginAssembly { get; private set; }
 
         #endregion
 
-        public PluginIncompatibleVersionEventArgs(Version myPluginVersion, Version myMinVersion, Version myMaxVersion, Type myPluginType)
+        public PluginIncompatibleVersionEventArgs(Assembly myPluginAssembly, Version myPluginVersion, Version myMinVersion, Version myMaxVersion, Type myPluginType)
         {
             this.PluginVersion = myPluginVersion;
             this.MinVersion = myMinVersion;
             this.MaxVersion = myMaxVersion;
             this.PluginType = myPluginType;
+            this.PluginAssembly = myPluginAssembly;
         }
 
     }

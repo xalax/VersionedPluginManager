@@ -14,6 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Reflection;
 
 namespace xalax.PluginManager.Exceptions
 {
@@ -65,14 +66,14 @@ namespace xalax.PluginManager.Exceptions
     public class IncompatiblePluginVersionException : PluginActivatorException
     {
 
-        public IncompatiblePluginVersionException(Version myCurrentVersion, Version myMinVersion)
-            : base(String.Format("The plugin version '{0}' is lower than the minimum supported version '{1}'", myCurrentVersion, myMinVersion))
+        public IncompatiblePluginVersionException(Assembly myPluginAssembly, Version myCurrentVersion, Version myMinVersion)
+            : base(String.Format("The plugin version '{0}' is lower than the minimum supported version '{1}' of asssembly '{2}'", myCurrentVersion, myMinVersion, myPluginAssembly))
         {
 
         }
 
-        public IncompatiblePluginVersionException(Version myCurrentVersion, Version myMinVersion, Version myMaxVersion)
-            : base(String.Format("The plugin version '{0}' is not a supported version. Minimum version is '{1}' and maximum version is '{2}'", myCurrentVersion, myMinVersion, myMaxVersion))
+        public IncompatiblePluginVersionException(Assembly myPluginAssembly, Version myCurrentVersion, Version myMinVersion, Version myMaxVersion)
+            : base(String.Format("The plugin version '{0}' is not a supported version. Minimum version is '{1}' and maximum version is '{2}' of asssembly '{3}'", myCurrentVersion, myMinVersion, myMaxVersion, myPluginAssembly))
         {
 
         }

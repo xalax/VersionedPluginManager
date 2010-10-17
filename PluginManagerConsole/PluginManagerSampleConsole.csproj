@@ -56,6 +56,7 @@
       <Name>PluginManager</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <Content Include="SamplePlugin\SamplePlugin1.9.1.15.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

@@ -163,23 +163,65 @@ namespace xalax.PluginManager
 
         private void DiscoverFile(Boolean myThrowExceptionOnIncompatibleVersion, Boolean myPublicOnly, String myFile)
         {
+
             Assembly loadedPluginAssembly;
 
             #region Try to load assembly from the filename
 
+            #region Load assembly
+
             try
             {
                 loadedPluginAssembly = Assembly.LoadFrom(myFile);
-                if (loadedPluginAssembly.GetTypes().IsNullOrEmpty())
-                {
-                    return;
-                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.ToString());
                 return;
             }
+
+            #endregion
+
+            #region Check all types of the assembly - this might throw a ReflectionTypeLoadException if the plugin definition des no longer match the plugin implementation
+
+            try
+            {
+                if (loadedPluginAssembly.GetTypes().IsNullOrEmpty())
+                {
+                    return;
+                }
+            }
+            catch (ReflectionTypeLoadException rex)
+            {
+
+                #region Do we have a conflict of an plugin implementation?
+                // Check all referenced assembly of this failed loadedPluginAssembly.GetTypes() and find all matching assemblies with 
+                // all types in _InheritTypeAndInstance
+
+                //TODO: check more than only one reference depth...
+
+                //var matchingAssemblies = new List<Tuple<AssemblyName, AssemblyName>>();
+                foreach (var assembly in loadedPluginAssembly.GetReferencedAssemblies())
+                {
+                    var matchings = _InheritTypeAndInstance.Where(kv => Assembly.GetAssembly(kv.Key).GetName().Name == assembly.Name);
+                    if (matchings != null)
+                    {
+                        foreach (var matchAss in matchings)
+                        {
+                            //matchingAssemblies.Add(new Tuple<AssemblyName, AssemblyName>(Assembly.GetAssembly(matchAss.Key).GetName(), assembly));
+                            CheckVersion(myThrowExceptionOnIncompatibleVersion, loadedPluginAssembly, Assembly.GetAssembly(matchAss.Key).GetName(), assembly, matchAss.Value.Item1);
+                        }
+                    }
+
+                }
+
+                #endregion
+
+                return;
+
+            }
+
+            #endregion
 
             #endregion
 
@@ -210,6 +252,12 @@ namespace xalax.PluginManager
 
         }
 
+        /// <summary>
+        /// Will seach all registered type whether it is an plugin definition of <paramref name="myCurrentPluginType"/>.
+        /// </summary>
+        /// <param name="myThrowExceptionOnIncompatibleVersion"></param>
+        /// <param name="myLoadedPluginAssembly">The assembly from which the <paramref name="myCurrentPluginType"/> comes from.</param>
+        /// <param name="myCurrentPluginType">The current plugin (or not).</param>
         private void FindAndActivateTypes(bool myThrowExceptionOnIncompatibleVersion, Assembly myLoadedPluginAssembly, Type myCurrentPluginType)
         {
 
@@ -228,7 +276,7 @@ namespace xalax.PluginManager
 
                 #endregion
 
-                CheckVersion(myThrowExceptionOnIncompatibleVersion, baseTypeAssembly, pluginReferencedAssembly, activatorInfo);
+                CheckVersion(myThrowExceptionOnIncompatibleVersion, myLoadedPluginAssembly, baseTypeAssembly, pluginReferencedAssembly, activatorInfo);
 
                 #region Create instance and add to lookup dict
 
@@ -248,7 +296,7 @@ namespace xalax.PluginManager
 
         }
 
-        private void CheckVersion(bool myThrowExceptionOnIncompatibleVersion, AssemblyName myBaseTypeAssembly, AssemblyName myPluginReferencedAssembly, ActivatorInfo myActivatorInfo)
+        private void CheckVersion(bool myThrowExceptionOnIncompatibleVersion, Assembly myPluginAssembly, AssemblyName myBaseTypeAssembly, AssemblyName myPluginReferencedAssembly, ActivatorInfo myActivatorInfo)
         {
 
             #region Check version
@@ -266,11 +314,11 @@ namespace xalax.PluginManager
                     {
                         if (OnPluginIncompatibleVersion != null)
                         {
-                            OnPluginIncompatibleVersion(this, new PluginIncompatibleVersionEventArgs(myPluginReferencedAssembly.Version, myActivatorInfo.MinVersion, myActivatorInfo.MaxVersion, myActivatorInfo.Type));
+                            OnPluginIncompatibleVersion(this, new PluginIncompatibleVersionEventArgs(myPluginAssembly, myPluginReferencedAssembly.Version, myActivatorInfo.MinVersion, myActivatorInfo.MaxVersion, myActivatorInfo.Type));
                         }
                         if (myThrowExceptionOnIncompatibleVersion)
                         {
-                            throw new IncompatiblePluginVersionException(myPluginReferencedAssembly.Version, myActivatorInfo.MinVersion, myActivatorInfo.MaxVersion);
+                            throw new IncompatiblePluginVersionException(myPluginAssembly, myPluginReferencedAssembly.Version, myActivatorInfo.MinVersion, myActivatorInfo.MaxVersion);
                         }
                     }
                     else
@@ -283,21 +331,27 @@ namespace xalax.PluginManager
                 }
                 else
                 {
+
+                    #region Compare min version
+
                     if (myPluginReferencedAssembly.Version.CompareTo(myActivatorInfo.MinVersion) < 0)
                     {
                         if (OnPluginIncompatibleVersion != null)
                         {
-                            OnPluginIncompatibleVersion(this, new PluginIncompatibleVersionEventArgs(myPluginReferencedAssembly.Version, myActivatorInfo.MinVersion, myActivatorInfo.MaxVersion, myActivatorInfo.Type));
+                            OnPluginIncompatibleVersion(this, new PluginIncompatibleVersionEventArgs(myPluginAssembly, myPluginReferencedAssembly.Version, myActivatorInfo.MinVersion, myActivatorInfo.MaxVersion, myActivatorInfo.Type));
                         }
                         if (myThrowExceptionOnIncompatibleVersion)
                         {
-                            throw new IncompatiblePluginVersionException(myPluginReferencedAssembly.Version, myActivatorInfo.MinVersion);
+                            throw new IncompatiblePluginVersionException(myPluginAssembly, myPluginReferencedAssembly.Version, myActivatorInfo.MinVersion);
                         }
                     }
                     else
                     {
                         // valid version
                     }
+
+                    #endregion
+
                 }
 
             }
