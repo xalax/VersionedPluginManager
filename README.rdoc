@@ -15,7 +15,7 @@ Using the VersionedPluginManager to load the plugins into your application you h
 
 
 	var pm = new PluginManager(Environment.CurrentDirectory)
-		.Register<ISamplePlugin>(new Version(1, 0), new Version(1, 8));
+		.Register<ISamplePlugin>(new Version(1, 0), new Version(1, 9, 3));
 	pm.OnPluginIncompatibleVersion += new Events.PluginIncompatibleVersionEvent(pm_OnPluginIncompatibleVersion);
 	pm.Discover(false); // do not throw an axception
 
