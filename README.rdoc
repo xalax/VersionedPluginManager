@@ -1,3 +1,28 @@
+= Versioned Plugin Manager
+As soon as some users will create their own plugins based on a specific application version their might run into 
+problems at the time they update the application but do not recompile their own plugins. 
+Using the VersionedPluginManager to load the plugins into your application you have control which version you will accept or not.
+
+= Usage
+* Load all plugins which implements the "ISamplePlugin" from assembly version 1.0 to 1.9.3 from the current directory. An exception will be thrown if an incompatible version was found.
+
+```csharp
+var pm = new PluginManager(Environment.CurrentDirectory)
+	.Register<ISamplePlugin>(new Version(1, 0), new Version(1, 9, 3))
+		.Discover();
+```
+
+
+* Same as above but without throwing an exception but calling the event "PluginIncompatibleVersionEvent" for each incompatible version.
+
+```csharp
+var pm = new PluginManager(Environment.CurrentDirectory)
+	.Register<ISamplePlugin>(new Version(1, 0), new Version(1, 8));
+pm.OnPluginIncompatibleVersion += new Events.PluginIncompatibleVersionEvent(pm_OnPluginIncompatibleVersion);
+pm.Discover(false); // do not throw an axception
+```
+
+
 
 = License
 The VersionedPluginManager is under the MIT License
